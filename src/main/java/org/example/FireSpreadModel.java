@@ -3,9 +3,10 @@ package org.example;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 
+import java.text.SimpleDateFormat;
 import java.util.*;
 
-class WangFireSpreadModel {
+class FireSpreadModel {
     private double windSpeed; // 风速，单位：公里/小时
     private double windDirection; // 风向，单位：度（0-360）
     private double terrainFactor; // 地形影响因子
@@ -16,7 +17,7 @@ class WangFireSpreadModel {
     private List<Coordinate> barriers; // 隔离带坐标列表
 
     // 构造方法，用于初始化风速、风向、地形因子、湿度、温度、天气情况、植被情况和隔离带
-    public WangFireSpreadModel(double windSpeed, double windDirection, double terrainFactor, double humidity, double temperature, String weatherCondition, String vegetationType, List<Coordinate> barriers) {
+    public FireSpreadModel(double windSpeed, double windDirection, double terrainFactor, double humidity, double temperature, String weatherCondition, String vegetationType, List<Coordinate> barriers) {
         this.windSpeed = windSpeed; // 初始化风速
         this.windDirection = windDirection; // 初始化风向
         this.terrainFactor = terrainFactor; // 初始化地形因子
@@ -206,15 +207,40 @@ class WangFireSpreadModel {
     }
 
     // 将计算结果转换为CZML格式
-    // 将计算结果转换为CZML格式
-    public static String convertToCZML(Coordinate startCoordinate, Map<String, List<Coordinate>> timeBasedCoordinates) {
+    public static String convertToCZML(Coordinate startCoordinate,int duration, Map<String, List<Coordinate>> timeBasedCoordinates) {
         JSONArray czml = new JSONArray(); // 创建CZML数组
         JSONObject document = new JSONObject(); // 创建CZML文档对象
         document.put("id", "document");
+        document.put("name", "Sequential Polygon Display Example");
         document.put("version", "1.0");
+
+        // 获取当前日期并设置为当天的00:00:00
+        Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        calendar.set(Calendar.HOUR_OF_DAY, 0);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+        Date currentTime = calendar.getTime();
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+        String startTimeString = sdf.format(currentTime);
+
+        // 计算总时长
+        int totalDuration = timeBasedCoordinates.size() * duration; // 每个多边形展示3秒
+        calendar.add(Calendar.SECOND, totalDuration);
+        String endTimeString = sdf.format(calendar.getTime());
+
+        // 设置时钟信息
+        JSONObject clock = new JSONObject();
+        clock.put("interval", startTimeString + "/" + endTimeString);
+        clock.put("currentTime", startTimeString);
+        clock.put("multiplier", 1);
+        clock.put("range", "CLAMPED");
+        clock.put("step", "SYSTEM_CLOCK_MULTIPLIER");
+        document.put("clock", clock);
         czml.add(document); // 添加文档对象到CZML数组
 
-        // 添加起始点
+        // 添加初始点
         JSONObject startPoint = new JSONObject();
         startPoint.put("id", "startPoint");
         startPoint.put("name", "起火点");
@@ -228,16 +254,16 @@ class WangFireSpreadModel {
         czml.add(startPoint);
 
         // 动态多边形动画设置
-        int startTime = 0;
-        int duration = 1; // 设置每个时间段的长度为1分钟
+        calendar.setTime(currentTime); // 重置时间为起始时间
 
+        int polygonIndex = 1;
         for (Map.Entry<String, List<Coordinate>> entry : timeBasedCoordinates.entrySet()) {
             String timeLabel = entry.getKey();
             List<Coordinate> coordinates = entry.getValue();
 
             JSONObject polygon = new JSONObject();
-            polygon.put("id", "polygon-" + timeLabel);
-            polygon.put("name", "Fire Spread - " + timeLabel);
+            polygon.put("id", "fire-polygon-" + polygonIndex);
+            polygon.put("name", timeLabel);
 
             JSONArray polygonCoordinates = new JSONArray();
             for (Coordinate coord : coordinates) {
@@ -248,7 +274,9 @@ class WangFireSpreadModel {
                 polygonCoordinates.addAll(Arrays.asList(firstCoord.longitude, firstCoord.latitude, 0));
             }
 
-            String availability = "2024-05-21T00:00:00Z/2024-05-21T00:00:05Z";
+            calendar.add(Calendar.SECOND, duration);
+            String startInterval = sdf.format(calendar.getTime());
+            String availability = startInterval + "/" + endTimeString;
             polygon.put("availability", availability);
 
             JSONObject polygonGraphics = new JSONObject();
@@ -259,36 +287,46 @@ class WangFireSpreadModel {
             polygonGraphics.put("outlineColor", new JSONObject().fluentPut("rgba", Arrays.asList(255, 0, 0, 255)));
             polygon.put("polygon", polygonGraphics);
 
+            // 计算多边形的中心点
+            Coordinate center = calculateCentroid(coordinates);
+
+            // 添加标签
+            JSONObject label = new JSONObject();
+            label.put("text", timeLabel);
+            label.put("font", "24px sans-serif");
+            label.put("fillColor", new JSONObject().fluentPut("rgba", Arrays.asList(255, 255, 255, 255)));
+            label.put("outlineColor", new JSONObject().fluentPut("rgba", Arrays.asList(0, 0, 0, 255)));
+            label.put("outlineWidth", 2);
+            label.put("style", "FILL_AND_OUTLINE");
+            label.put("horizontalOrigin", "CENTER");
+            label.put("verticalOrigin", "BOTTOM");
+
+            polygon.put("label", label);
+
+            JSONObject labelPosition = new JSONObject();
+            labelPosition.put("cartographicDegrees", Arrays.asList(center.longitude, center.latitude, 0));
+            polygon.put("position", labelPosition);
             czml.add(polygon);
 
-            startTime += duration; // 增加时间间隔
+            polygonIndex++;
         }
-
-        // 添加水波纹动画效果
-        JSONObject waterEffect = new JSONObject();
-        waterEffect.put("id", "waterEffect");
-        waterEffect.put("name", "Water Effect");
-        String waterAvailability = "2024-05-21T00:00:00Z/2024-05-21T00:00:05Z";
-        waterEffect.put("availability", waterAvailability);
-
-        JSONObject waterMaterial = new JSONObject();
-        waterMaterial.put("solidColor", new JSONObject().fluentPut("color", new JSONObject().fluentPut("rgba", Arrays.asList(0, 0, 255, 100))));
-
-        JSONObject waterPosition = new JSONObject();
-        waterPosition.put("cartographicDegrees", Arrays.asList(startCoordinate.longitude, startCoordinate.latitude, 0));
-
-        JSONObject ellipse = new JSONObject();
-        ellipse.put("semiMajorAxis", 1000);
-        ellipse.put("semiMinorAxis", 1000);
-        ellipse.put("material", waterMaterial);
-
-        waterEffect.put("position", waterPosition);
-        waterEffect.put("ellipse", ellipse);
-
-        czml.add(waterEffect);
 
         return czml.toJSONString(); // 返回CZML格式的字符串
     }
+
+    // 计算多边形的中心点
+    public static Coordinate calculateCentroid(List<Coordinate> coordinates) {
+        double centroidX = 0, centroidY = 0;
+        int numPoints = coordinates.size();
+
+        for (Coordinate coord : coordinates) {
+            centroidX += coord.longitude;
+            centroidY += coord.latitude;
+        }
+
+        return new Coordinate(centroidY / numPoints, centroidX / numPoints);
+    }
+
 
     // 计算多边形的面积，单位：平方公里
     public static double calculatePolygonArea(List<Coordinate> coordinates) {
@@ -305,8 +343,8 @@ class WangFireSpreadModel {
     }
 
     public static void main(String[] args) {
-        Coordinate startPoint = new Coordinate(30.0, 114.0); // 初始化起始点的坐标
-        double windSpeed = 15.0; // 设置风速，单位：公里/小时
+        Coordinate startPoint = new Coordinate(29.55,106.65); // 初始化起始点的坐标
+        double windSpeed = 10.0; // 设置风速，单位：公里/小时
         double windDirection = 90.0; // 设置风向，单位：度（0表示北，90表示东，180表示南，270表示西）
         double terrainFactor = 1.2; // 设置地形影响因子（假设值）
         double humidity = 30.0; // 设置湿度，单位：百分比
@@ -318,7 +356,7 @@ class WangFireSpreadModel {
                 new Coordinate(30.2, 114.2)
         ); // 设置隔离带坐标
 
-        WangFireSpreadModel model = new WangFireSpreadModel(windSpeed, windDirection, terrainFactor, humidity, temperature, weatherCondition, vegetationType, barriers); // 创建火灾蔓延模型实例
+        FireSpreadModel model = new FireSpreadModel(windSpeed, windDirection, terrainFactor, humidity, temperature, weatherCondition, vegetationType, barriers); // 创建火灾蔓延模型实例
 
         Map<String, List<Coordinate>> timeBasedCoordinates = new LinkedHashMap<>(); // 创建一个有序的Map用于存储按时间段分类的火灾影响区域坐标
         timeBasedCoordinates.put("1 hour", model.simulateFireSpread(startPoint, 1)); // 模拟1小时的火灾范围并存储
@@ -329,7 +367,7 @@ class WangFireSpreadModel {
         System.out.println("GeoJSON:"); // 输出GeoJSON前的提示
         System.out.println(geoJson); // 输出GeoJSON格式的结果
 
-        String czml = convertToCZML(startPoint, timeBasedCoordinates); // 将火灾范围结果转换为CZML格式
+        String czml = convertToCZML(startPoint, 3,timeBasedCoordinates); // 将火灾范围结果转换为CZML格式
         System.out.println("CZML:"); // 输出CZML前的提示
         System.out.println(czml); // 输出CZML格式的结果
 
