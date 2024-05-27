@@ -282,9 +282,9 @@ class FireSpreadModel {
             JSONObject polygonGraphics = new JSONObject();
             polygonGraphics.put("positions", new JSONObject().fluentPut("cartographicDegrees", polygonCoordinates));
             polygonGraphics.put("material", new JSONObject().fluentPut("solidColor", new JSONObject()
-                    .fluentPut("color", new JSONObject().fluentPut("rgba", Arrays.asList(255, 165, 0, 128)))));
+                    .fluentPut("color", new JSONObject().fluentPut("rgba", Arrays.asList(255, 0, 0, 128)))));
             polygonGraphics.put("outline", true);
-            polygonGraphics.put("outlineColor", new JSONObject().fluentPut("rgba", Arrays.asList(255, 0, 0, 255)));
+            polygonGraphics.put("outlineColor", new JSONObject().fluentPut("rgba", Arrays.asList(0, 255, 0, 255)));
             polygon.put("polygon", polygonGraphics);
 
             // 计算多边形的中心点
@@ -316,15 +316,18 @@ class FireSpreadModel {
 
     // 计算多边形的label位置
     public static Coordinate calculateCentroid(List<Coordinate> coordinates) {
-        double centroidX = 0, centroidY = 0;
-        int numPoints = coordinates.size();
-
-        for (Coordinate coord : coordinates) {
-            centroidX += coord.longitude;
-            centroidY += coord.latitude;
+        if (coordinates.isEmpty()) {
+            return null; // 如果坐标列表为空，返回null
         }
 
-        return new Coordinate(centroidY / numPoints, centroidX / numPoints);
+        Coordinate eastMost = coordinates.get(0); // 初始化东边最大的坐标为列表的第一个坐标
+        for (Coordinate coord : coordinates) {
+            if (coord.longitude > eastMost.longitude) {
+                eastMost = coord; // 更新东边最大的坐标
+            }
+        }
+
+        return eastMost;
     }
 
 
