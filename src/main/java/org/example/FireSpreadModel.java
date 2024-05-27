@@ -314,7 +314,7 @@ class FireSpreadModel {
         return czml.toJSONString(); // 返回CZML格式的字符串
     }
 
-    // 计算多边形的中心点
+    // 计算多边形的label位置
     public static Coordinate calculateCentroid(List<Coordinate> coordinates) {
         double centroidX = 0, centroidY = 0;
         int numPoints = coordinates.size();
@@ -343,8 +343,8 @@ class FireSpreadModel {
     }
 
     public static void main(String[] args) {
-        Coordinate startPoint = new Coordinate(29.55,106.65); // 初始化起始点的坐标
-        double windSpeed = 10.0; // 设置风速，单位：公里/小时
+        Coordinate startPoint = new Coordinate(25.0654,102.8577); // 初始化起始点的坐标
+        double windSpeed = 5.0; // 设置风速，单位：公里/小时
         double windDirection = 90.0; // 设置风向，单位：度（0表示北，90表示东，180表示南，270表示西）
         double terrainFactor = 1.2; // 设置地形影响因子（假设值）
         double humidity = 30.0; // 设置湿度，单位：百分比
@@ -359,9 +359,9 @@ class FireSpreadModel {
         FireSpreadModel model = new FireSpreadModel(windSpeed, windDirection, terrainFactor, humidity, temperature, weatherCondition, vegetationType, barriers); // 创建火灾蔓延模型实例
 
         Map<String, List<Coordinate>> timeBasedCoordinates = new LinkedHashMap<>(); // 创建一个有序的Map用于存储按时间段分类的火灾影响区域坐标
-        timeBasedCoordinates.put("1 hour", model.simulateFireSpread(startPoint, 1)); // 模拟1小时的火灾范围并存储
-        timeBasedCoordinates.put("3 hours", model.simulateFireSpread(startPoint, 3)); // 模拟3小时的火灾范围并存储
-        timeBasedCoordinates.put("5 hours", model.simulateFireSpread(startPoint, 5)); // 模拟5小时的火灾范围并存储
+        timeBasedCoordinates.put("1 小时", model.simulateFireSpread(startPoint, 1)); // 模拟1小时的火灾范围并存储
+        timeBasedCoordinates.put("3 小时", model.simulateFireSpread(startPoint, 3)); // 模拟3小时的火灾范围并存储
+        timeBasedCoordinates.put("5 小时", model.simulateFireSpread(startPoint, 5)); // 模拟5小时的火灾范围并存储
 
         String geoJson = convertToGeoJSON(startPoint, timeBasedCoordinates); // 将火灾范围结果转换为GeoJSON格式
         System.out.println("GeoJSON:"); // 输出GeoJSON前的提示
@@ -371,12 +371,5 @@ class FireSpreadModel {
         System.out.println("CZML:"); // 输出CZML前的提示
         System.out.println(czml); // 输出CZML格式的结果
 
-        // 计算并输出每个时间段的多边形面积
-        for (Map.Entry<String, List<Coordinate>> entry : timeBasedCoordinates.entrySet()) {
-            String timeLabel = entry.getKey();
-            List<Coordinate> coordinates = entry.getValue();
-            double area = calculatePolygonArea(coordinates); // 计算多边形面积
-            System.out.println("Area after " + timeLabel + ": " + area + " square kilometers"); // 输出面积
-        }
     }
 }
