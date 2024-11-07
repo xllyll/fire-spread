@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class FireSpreadModel {
+
     private double windSpeed; // 风速，单位：公里/小时
     private double windDirection; // 风向，单位：度（0-360）
     private double terrainFactor; // 地形影响因子
@@ -25,21 +26,35 @@ public class FireSpreadModel {
         this.barriers = barriers; // 初始化隔离带
     }
 
-    // 模拟火灾传播的主要方法
+    /**
+     * 模拟火灾传播的主要方法
+     * @param startPoint
+     * @param durationMinute
+     * @return
+     */
+    public List<XYCoordinate> simulateFireSpreadByMinute(XYCoordinate startPoint, double durationMinute) {
+        return simulateFireSpread(startPoint,durationMinute / 60.0);
+    }
+
+    /**
+     * 模拟火灾传播的主要方法
+     * @param startPoint
+     * @param durationHours
+     * @return
+     */
     public List<XYCoordinate> simulateFireSpread(XYCoordinate startPoint, double durationHours) {
         List<XYCoordinate> affectedArea = new ArrayList<>(); // 创建一个列表用于存储火灾影响区域的坐标
 
         double baseSpreadRate = 0.5; // 基础蔓延速率，单位：公里/小时
 
         // 遍历每个角度，计算每个方向上的蔓延距离
-        for (double angle = 0; angle < 360; angle += 3) { // 每5度计算一个点
+        for (double angle = 0; angle < 360; angle += 10) { // 每5度计算一个点
             double radians = Math.toRadians(angle); // 将角度转换为弧度
             double spreadFactor = calculateSpreadFactor(angle); // 计算基于风向的蔓延因子
             double weatherFactor = calculateWeatherFactor(); // 计算天气影响因子
             double vegetationFactor = calculateVegetationFactor(); // 计算植被影响因子
             double barrierFactor = calculateBarrierFactor(startPoint); // 计算隔离带影响因子
             double spreadDistance = baseSpreadRate * spreadFactor * weatherFactor * vegetationFactor * barrierFactor * durationHours * terrainFactor * calculateHumidityFactor() * calculateTemperatureFactor(); // 计算火灾在该方向的蔓延距离
-
             double newLat = startPoint.getLatitude() + (spreadDistance / 111.32) * Math.cos(radians); // 计算新的纬度（每度纬度大约等于111.32公里）
             double newLon = startPoint.getLongitude() + (spreadDistance / (111.32 * Math.cos(Math.toRadians(startPoint.getLatitude())))) * Math.sin(radians); // 计算新的经度（考虑纬度变化的影响）
             affectedArea.add(new XYCoordinate(newLat, newLon)); // 将新的坐标添加到影响区域列表中

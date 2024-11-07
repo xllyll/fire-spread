@@ -113,6 +113,7 @@ public class GeoJsonControlledFireSpread {
         return reachablePoints;
     }
 
+
     // 获取一个区域中满足条件的可达点（通过直线与隔离带的关系）
     private static List<Coordinate> getReachablePointsByLines(Geometry area, Point firePoint, Geometry[] barriers) {
         List<Coordinate> reachablePoints = new ArrayList<>();
