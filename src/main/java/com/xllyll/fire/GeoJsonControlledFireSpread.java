@@ -19,8 +19,8 @@ public class GeoJsonControlledFireSpread {
     public static void main(String[] args) {
         try {
 
-            XYCoordinate startPoint = new XYCoordinate(0,0); // 初始化起始点的坐标
-            double windSpeed = 10000.0; // 设置风速，单位：公里/小时
+            XYCoordinate startPoint = new XYCoordinate(29.55,106.65); // 初始化起始点的坐标
+            double windSpeed = 0.5; // 设置风速，单位：公里/小时
             double windDirection = 0; // 设置风向，单位：度（0表示北，90表示东，180表示南，270表示西）
             double terrainFactor = 1; // 设置地形影响因子（假设值）
             double humidity = 1; // 设置湿度，单位：百分比
@@ -32,18 +32,19 @@ public class GeoJsonControlledFireSpread {
             FireSpreadModel model = new FireSpreadModel(windSpeed, windDirection, terrainFactor, humidity, temperature, weatherCondition, vegetationType, null); // 创建火灾蔓延模型实例
 
             Map<String, List<XYCoordinate>> timeBasedCoordinates = new LinkedHashMap<>(); // 创建一个有序的Map用于存储按时间段分类的火灾影响区域坐标
-//            timeBasedCoordinates.put("1小时", model.simulateFireSpread(startPoint, 1)); // 模拟1小时的火灾范围并存储
-//            timeBasedCoordinates.put("3小时", model.simulateFireSpread(startPoint, 3)); // 模拟3小时的火灾范围并存储
-//            timeBasedCoordinates.put("5小时", model.simulateFireSpread(startPoint, 5)); // 模拟5小时的火灾范围并存储
-//            JSONObject geojson = FireSpreadTools.convertToGeoJSON(startPoint,timeBasedCoordinates);
-
+            timeBasedCoordinates.put("1小时", model.simulateFireSpread(startPoint, 0.5,1)); // 模拟1小时的火灾范围并存储
+            timeBasedCoordinates.put("3小时", model.simulateFireSpread(startPoint, 0.45,3)); // 模拟3小时的火灾范围并存储
+            timeBasedCoordinates.put("5小时", model.simulateFireSpread(startPoint, 0.4,5)); // 模拟5小时的火灾范围并存储
+            JSONObject geojson = FireSpreadTools.convertToGeoJSON(startPoint,timeBasedCoordinates);
+            String json = geojson.toJSONString();
+            System.out.println(json);
 
             // 创建一个GeometryFactory实例
             GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory(null);
 
             // 使用字符串表示的GeoJSON数据
 //            String geoJsonA = createCircleGeoJson(0, 0, 5, 32); // 圆形A，表示起火蔓延的范围
-            String geoJsonA = FireSpreadTools.convertToGeoJSON(model.simulateFireSpread(startPoint, 1)).toJSONString();
+            String geoJsonA = FireSpreadTools.convertToGeoJSON(model.simulateFireSpread(startPoint, 0.5,1)).toJSONString();
             String geoJsonB = "{ \"type\": \"Feature\", \"geometry\": { \"type\": \"Polygon\", \"coordinates\": [[[2, -2], [2.5, -2], [2.5, 6], [2, 6], [2, -2]]]}, \"properties\": {} }"; // 隔离带B
             String geoJsonC = "{ \"type\": \"Feature\", \"geometry\": { \"type\": \"Polygon\", \"coordinates\": [[[-2, 2], [-2, 2.5], [-6, 2.5], [-6, 2], [-2, 2]]]}, \"properties\": {} }"; // 隔离带B
 

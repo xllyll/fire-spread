@@ -1,7 +1,9 @@
 package com.xllyll.fire.model;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public class FireSpreadModel {
 
@@ -13,7 +15,7 @@ public class FireSpreadModel {
     private String weatherCondition; // 天气情况
     private String vegetationType; // 植被情况
     private List<XYCoordinate> barriers; // 隔离带坐标列表
-
+    private DEMElevationFetcher elevationFetcher;
     // 构造方法，用于初始化风速、风向、地形因子、湿度、温度、天气情况、植被情况和隔离带
     public FireSpreadModel(double windSpeed, double windDirection, double terrainFactor, double humidity, double temperature, String weatherCondition, String vegetationType, List<XYCoordinate> barriers) {
         this.windSpeed = windSpeed; // 初始化风速
@@ -24,6 +26,13 @@ public class FireSpreadModel {
         this.weatherCondition = weatherCondition; // 初始化天气情况
         this.vegetationType = vegetationType; // 初始化植被情况
         this.barriers = barriers; // 初始化隔离带
+
+        String demFilePath = "/Users/xllyll/Downloads/chongqi.tif";
+        try {
+            elevationFetcher = new DEMElevationFetcher(demFilePath);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -32,31 +41,87 @@ public class FireSpreadModel {
      * @param durationMinute
      * @return
      */
-    public List<XYCoordinate> simulateFireSpreadByMinute(XYCoordinate startPoint, double durationMinute) {
-        return simulateFireSpread(startPoint,durationMinute / 60.0);
+    public List<XYCoordinate> simulateFireSpreadByMinute(XYCoordinate startPoint,double baseSpreadRate ,double durationMinute) {
+        return simulateFireSpread(startPoint,baseSpreadRate,durationMinute / 60.0);
     }
-
+    private double getRandomDouble() {
+        Random random = new Random();
+        return random.nextDouble();
+    }
     /**
      * 模拟火灾传播的主要方法
      * @param startPoint
+     * @param baseSpreadRate 基础蔓延速率，单位：公里/小时(0.5)
      * @param durationHours
      * @return
      */
-    public List<XYCoordinate> simulateFireSpread(XYCoordinate startPoint, double durationHours) {
+    public List<XYCoordinate> simulateFireSpread(XYCoordinate startPoint,double baseSpreadRate, double durationHours) {
+
+        double startPointHeight = 0;
+        if (elevationFetcher!=null){
+            try {
+                startPointHeight = elevationFetcher.getElevation(startPoint.getLongitude(),startPoint.getLatitude());
+            } catch (IOException e) {
+                startPointHeight = 0;
+            }
+        }
+
         List<XYCoordinate> affectedArea = new ArrayList<>(); // 创建一个列表用于存储火灾影响区域的坐标
-
-        double baseSpreadRate = 0.5; // 基础蔓延速率，单位：公里/小时
-
         // 遍历每个角度，计算每个方向上的蔓延距离
-        for (double angle = 0; angle < 360; angle += 10) { // 每5度计算一个点
+        for (double angle = 0; angle < 360; angle += 1) { // 每5度计算一个点
             double radians = Math.toRadians(angle); // 将角度转换为弧度
-            double spreadFactor = calculateSpreadFactor(angle); // 计算基于风向的蔓延因子
+            double spreadFactor = calculateSpreadFactorRandom(angle); // 计算基于风向的蔓延因子
             double weatherFactor = calculateWeatherFactor(); // 计算天气影响因子
             double vegetationFactor = calculateVegetationFactor(); // 计算植被影响因子
             double barrierFactor = calculateBarrierFactor(startPoint); // 计算隔离带影响因子
-            double spreadDistance = baseSpreadRate * spreadFactor * weatherFactor * vegetationFactor * barrierFactor * durationHours * terrainFactor * calculateHumidityFactor() * calculateTemperatureFactor(); // 计算火灾在该方向的蔓延距离
+//            double tf = getRandomDouble();//terrainFactor;//地形
+            double tf = 1;
+            double spreadDistance = baseSpreadRate * spreadFactor * weatherFactor * vegetationFactor * barrierFactor * durationHours * tf * calculateHumidityFactor() * calculateTemperatureFactor(); // 计算火灾在该方向的蔓延距离
             double newLat = startPoint.getLatitude() + (spreadDistance / 111.32) * Math.cos(radians); // 计算新的纬度（每度纬度大约等于111.32公里）
             double newLon = startPoint.getLongitude() + (spreadDistance / (111.32 * Math.cos(Math.toRadians(startPoint.getLatitude())))) * Math.sin(radians); // 计算新的经度（考虑纬度变化的影响）
+
+            double newPointHeight = 0;
+            if (elevationFetcher!=null){
+                try {
+                    newPointHeight = elevationFetcher.getElevation(newLon,newLat);
+                } catch (IOException e) {
+                    newPointHeight = 0;
+                }
+            }
+            if (newPointHeight==0.0 || startPointHeight==0.0){
+                if (newPointHeight==0.0 && startPointHeight==0.0){
+                    tf = 1;
+                }else{
+                    if (newPointHeight==0.0){
+                        tf = 0.5;
+                    }else{
+                        tf = 1.5;
+                    }
+                }
+            }else{
+                if (newPointHeight>startPointHeight){
+                    //上坡
+                    tf = 1 + (newPointHeight-startPointHeight)/startPointHeight;
+                }else{
+                    //下坡
+                    tf = 1 - (startPointHeight-newPointHeight)/startPointHeight;
+                }
+            }
+
+            spreadDistance = baseSpreadRate * spreadFactor * weatherFactor * vegetationFactor * barrierFactor * durationHours * tf * calculateHumidityFactor() * calculateTemperatureFactor(); // 计算火灾在该方向的蔓延距离
+            newLat = startPoint.getLatitude() + (spreadDistance / 111.32) * Math.cos(radians); // 计算新的纬度（每度纬度大约等于111.32公里）
+            newLon = startPoint.getLongitude() + (spreadDistance / (111.32 * Math.cos(Math.toRadians(startPoint.getLatitude())))) * Math.sin(radians); // 计算新的经度（考虑纬度变化的影响）
+
+//            String newLatV = String.format("%.6f", newLat);
+//            String newLonV = String.format("%.6f", newLon);
+//
+//            Double nla = Double.valueOf(newLatV);
+//            Double nlo = Double.valueOf(newLonV);
+//            if (nla == null|| nlo == null || nla.isInfinite()){
+//                System.out.println("");
+//            }else{
+//                System.out.println("===>"+nla.doubleValue());
+//            }
             affectedArea.add(new XYCoordinate(newLat, newLon)); // 将新的坐标添加到影响区域列表中
         }
 
@@ -65,6 +130,16 @@ public class FireSpreadModel {
 
     // 计算基于风向的蔓延因子
     private double calculateSpreadFactor(double angle) {
+        double angleDifference = Math.abs(angle - windDirection); // 计算当前方向与风向的夹角
+        if (angleDifference > 180) {
+            angleDifference = 360 - angleDifference; // 确保角度差在0到180度之间
+        }
+        double spreadFactor = 1 + (windSpeed / 10) * Math.cos(Math.toRadians(angleDifference)); // 计算蔓延因子
+        return Math.max(spreadFactor, 0); // 确保蔓延因子为非负值
+    }
+
+    private double calculateSpreadFactorRandom(double angle) {
+        int wd = (int) (Math.random() * 45) + 1;
         double angleDifference = Math.abs(angle - windDirection); // 计算当前方向与风向的夹角
         if (angleDifference > 180) {
             angleDifference = 360 - angleDifference; // 确保角度差在0到180度之间
